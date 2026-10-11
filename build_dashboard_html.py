@@ -913,12 +913,17 @@ def generate_html():
       }}
     }}
 
+    function showToast(text, bg) {{
+      const toast = document.getElementById("toast");
+      toast.textContent = text;
+      if (bg) toast.style.background = bg;
+      toast.style.display = "block";
+      setTimeout(() => {{ toast.style.display = "none"; }}, 2500);
+    }}
+
     function copyText(text) {{
       navigator.clipboard.writeText(text).then(() => {{
-        const toast = document.getElementById("toast");
-        toast.textContent = "Copied to clipboard!";
-        toast.style.display = "block";
-        setTimeout(() => {{ toast.style.display = "none"; }}, 2000);
+        showToast("Copied to clipboard!", "#10b981");
       }}).catch(err => {{
         console.error("Copy failed", err);
       }});
@@ -926,8 +931,8 @@ def generate_html():
 
     function exportFilteredCSV() {{
       const filtered = filterData(database);
-      if (filtered.length === 0) {{
-        alert("No companies match your current filters.");
+      if (!filtered || filtered.length === 0) {{
+        showToast("No companies match current filters.", "#ef4444");
         return;
       }}
 
@@ -945,28 +950,40 @@ def generate_html():
         "Contact Phone / Email"
       ];
 
+      const escapeCSV = (val) => {{
+        if (val === null || val === undefined) return '""';
+        const str = String(val).replace(/"/g, '""');
+        return `"${{str}}"`;
+      }};
+
       const rows = filtered.map(d => [
-        `"${{d.name.replace(/"/g, '""')}}"`,
-        `"${{d.region}}"`,
-        `"${{d.city.replace(/"/g, '""')}}"`,
-        `"${{d.tier.replace(/"/g, '""')}}"`,
-        `"${{d.turnover.replace(/"/g, '""')}}"`,
-        `"${{d.sector.replace(/"/g, '""')}}"`,
-        `"${{d.use_case.replace(/"/g, '""')}}"`,
-        `"${{d.lead_name.replace(/"/g, '""')}}"`,
-        `"${{d.designation.replace(/"/g, '""')}}"`,
-        `"${{d.linkedin.replace(/"/g, '""')}}"`,
-        `"${{d.contact.replace(/"/g, '""')}}"`
+        escapeCSV(d.name),
+        escapeCSV(d.region),
+        escapeCSV(d.city),
+        escapeCSV(d.tier),
+        escapeCSV(d.turnover),
+        escapeCSV(d.sector),
+        escapeCSV(d.use_case),
+        escapeCSV(d.lead_name),
+        escapeCSV(d.designation),
+        escapeCSV(d.linkedin),
+        escapeCSV(d.contact)
       ]);
 
-      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\\n");
-      const encodedUri = encodeURI(csvContent);
+      const csvString = "\\uFEFF" + [headers.map(h => `"${{h}}"`).join(","), ...rows.map(e => e.join(","))].join("\\r\\n");
+      const blob = new Blob([csvString], {{ type: "text/csv;charset=utf-8;" }});
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Hydraulic_Cylinder_Buyers_${{activeRegion.replace(/\\s+/g, '_')}}_${{new Date().toISOString().split('T')[0]}}.csv`);
+      const regionSlug = (activeRegion || "All").replace(/\\s+/g, '_');
+      const dateSlug = new Date().toISOString().split('T')[0];
+      link.href = url;
+      link.download = `Hydraulic_Cylinder_Buyers_${{regionSlug}}_${{dateSlug}}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+      showToast(`Exported ${{filtered.length}} leads to CSV!`, "#10b981");
     }}
 
     window.onload = init;
